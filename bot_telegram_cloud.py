@@ -1,5 +1,8 @@
+from flask import Flask
+import threading
 import time
 import telebot
+import random
 
 # ============================
 # CONFIGURAÇÕES FIXAS
@@ -47,13 +50,13 @@ def enviar_loss():
     losses += 1
     bot.send_message(CHAT_ID, "❌ *LOSS CONFIRMADO*", parse_mode="Markdown")
 
+
 # ============================
 # ESTRATÉGIA SIMPLES
 # ============================
 def analisar_padrao():
     if len(historico) < 3:
         return None
-
     ultimos = historico[-3:]
     if ultimos.count("PLAYER") == 3:
         return "BANKER"
@@ -61,28 +64,45 @@ def analisar_padrao():
         return "PLAYER"
     return None
 
+
 # ============================
-# SIMULAÇÃO DE RESULTADOS (substitui OCR/Playwright)
+# SIMULAÇÃO DE RESULTADOS
 # ============================
 def pegar_resultado_simulado():
-    import random
     return random.choice(["PLAYER", "BANKER"])
 
+
 # ============================
-# LOOP PRINCIPAL
+# LOOP DO BOT (background)
 # ============================
-while True:
-    resultado = pegar_resultado_simulado()
+def bot_loop():
+    global ultimo_resultado
+    while True:
+        resultado = pegar_resultado_simulado()
+        if resultado != ultimo_resultado:
+            historico.append(resultado)
+            entrada = analisar_padrao()
+            if entrada:
+                enviar_sinal(entrada)
+            ultimo_resultado = resultado
+        time.sleep(5)
 
-    if resultado and resultado != ultimo_resultado:
-        print("Resultado detectado:", resultado)
 
-        historico.append(resultado)
-        entrada = analisar_padrao()
+# ============================
+# FLASK PARA MANTER O SERVIÇO ATIVO
+# ============================
+app = Flask(__name__)
 
-        if entrada:
-            enviar_sinal(entrada)
-            print(f"Sinal enviado: {entrada}")
+@app.route("/")
+def home():
+    return "Bot rodando no Railway!"
+
+# roda o bot em thread
+threading.Thread(target=bot_loop, daemon=True).start()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+
 
             # Simula próximo resultado após 60s
             time.sleep(60)
